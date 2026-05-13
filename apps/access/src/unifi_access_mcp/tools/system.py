@@ -10,6 +10,11 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from unifi_access_mcp.runtime import server, system_manager
+from unifi_core.access.models.users import from_controller as user_from_controller
+from unifi_core.access.models.system import (
+    health_from_controller,
+    system_info_from_controller,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +34,8 @@ async def access_get_system_info() -> Dict[str, Any]:
     """Get Access system information."""
     logger.info("access_get_system_info tool called")
     try:
-        info = await system_manager.get_system_info()
+        raw = await system_manager.get_system_info()
+        info = system_info_from_controller(raw).model_dump(exclude_none=True)
         return {"success": True, "data": info}
     except Exception as e:
         logger.error("Failed to get system info: %s", e, exc_info=True)
@@ -51,7 +57,8 @@ async def access_get_health() -> Dict[str, Any]:
     """Get Access system health metrics."""
     logger.info("access_get_health tool called")
     try:
-        health = await system_manager.get_health()
+        raw = await system_manager.get_health()
+        health = health_from_controller(raw).model_dump(exclude_none=True)
         return {"success": True, "data": health}
     except Exception as e:
         logger.error("Failed to get health: %s", e, exc_info=True)
@@ -88,7 +95,8 @@ async def access_list_users(
     logger.info("access_list_users tool called (limit=%s, compact=%s)", limit, compact)
     try:
         page_size = limit if limit and limit > 0 else 25
-        users = await system_manager.list_users(page_size=page_size, compact=compact)
+        raw_users = await system_manager.list_users(page_size=page_size, compact=compact)
+        users = [user_from_controller(u).model_dump(exclude_none=True) for u in raw_users]
         return {"success": True, "data": {"users": users, "count": len(users)}}
     except Exception as e:
         logger.error("Failed to list users: %s", e, exc_info=True)

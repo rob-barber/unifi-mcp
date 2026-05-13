@@ -8,9 +8,11 @@ import logging
 from typing import Annotated, Any, Dict
 
 from mcp.types import ToolAnnotations
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from unifi_access_mcp.runtime import device_manager, server
+from unifi_core.access.models._actions import RebootDeviceInput
+from unifi_core.access.models.devices import from_controller as access_device_from_controller
 from unifi_core.confirmation import preview_response
 from unifi_core.exceptions import UniFiNotFoundError
 
@@ -42,7 +44,8 @@ async def access_list_devices(
     """List all Access devices."""
     logger.info("access_list_devices tool called (compact=%s)", compact)
     try:
-        devices = await device_manager.list_devices(compact=compact)
+        raw_devices = await device_manager.list_devices(compact=compact)
+        devices = [access_device_from_controller(d).model_dump(exclude_none=True) for d in raw_devices]
         return {"success": True, "data": {"devices": devices, "count": len(devices)}}
     except Exception as e:
         logger.error("Error listing devices: %s", e, exc_info=True)
@@ -66,7 +69,8 @@ async def access_get_device(
     """Get detailed device information by ID."""
     logger.info("access_get_device tool called for %s", device_id)
     try:
-        detail = await device_manager.get_device(device_id)
+        raw = await device_manager.get_device(device_id)
+        detail = access_device_from_controller(raw).model_dump(exclude_none=True)
         return {"success": True, "data": detail}
     except (UniFiNotFoundError, ValueError) as e:
         return {"success": False, "error": str(e)}
@@ -97,6 +101,12 @@ async def access_reboot_device(
     """Reboot a device with preview/confirm."""
     logger.info("access_reboot_device tool called for %s (confirm=%s)", device_id, confirm)
     try:
+        try:
+            params = RebootDeviceInput(device_id=device_id)
+        except ValidationError as e:
+            return {"success": False, "error": f"Invalid input: {e.errors()[0]['msg']}"}
+        device_id = params.device_id
+
         if confirm:
             result = await device_manager.apply_reboot_device(device_id)
             return {"success": True, "data": result}
