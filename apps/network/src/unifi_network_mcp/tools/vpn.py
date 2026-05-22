@@ -11,6 +11,7 @@ from typing import Annotated, Any, Dict
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from unifi_core.confirmation import update_preview
 from unifi_core.exceptions import UniFiNotFoundError
 from unifi_network_mcp.runtime import server, vpn_manager
 
@@ -75,9 +76,24 @@ async def update_vpn_client_state(
         str, Field(description="Unique identifier (_id) of the VPN client to update (from unifi_list_vpn_clients)")
     ],
     enabled: Annotated[bool, Field(description="Set to true to enable the VPN client, false to disable it")],
+    confirm: Annotated[
+        bool,
+        Field(description="When true, executes the change. When false (default), returns a preview of the change"),
+    ] = False,
 ) -> Dict[str, Any]:
     """Implementation for updating VPN client state."""
     try:
+        if not confirm:
+            current = await vpn_manager.get_vpn_client_details(client_id)
+            current_enabled = bool(current.get("enabled", False)) if isinstance(current, dict) else False
+            return update_preview(
+                resource_type="vpn_client",
+                resource_id=client_id,
+                resource_name=current.get("name") if isinstance(current, dict) else None,
+                current_state={"enabled": current_enabled},
+                updates={"enabled": enabled},
+            )
+
         success = await vpn_manager.update_vpn_client_state(client_id, enabled)
         state = "enabled" if enabled else "disabled"
         if success:
@@ -154,9 +170,24 @@ async def update_vpn_server_state(
         str, Field(description="Unique identifier (_id) of the VPN server to update (from unifi_list_vpn_servers)")
     ],
     enabled: Annotated[bool, Field(description="Set to true to enable the VPN server, false to disable it")],
+    confirm: Annotated[
+        bool,
+        Field(description="When true, executes the change. When false (default), returns a preview of the change"),
+    ] = False,
 ) -> Dict[str, Any]:
     """Implementation for updating VPN server state."""
     try:
+        if not confirm:
+            current = await vpn_manager.get_vpn_server_details(server_id)
+            current_enabled = bool(current.get("enabled", False)) if isinstance(current, dict) else False
+            return update_preview(
+                resource_type="vpn_server",
+                resource_id=server_id,
+                resource_name=current.get("name") if isinstance(current, dict) else None,
+                current_state={"enabled": current_enabled},
+                updates={"enabled": enabled},
+            )
+
         success = await vpn_manager.update_vpn_server_state(server_id, enabled)
         state = "enabled" if enabled else "disabled"
         if success:

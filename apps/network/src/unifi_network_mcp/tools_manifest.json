@@ -16468,6 +16468,10 @@
               "description": "Unique identifier (_id) of the VPN client to update (from unifi_list_vpn_clients)",
               "type": "string"
             },
+            "confirm": {
+              "description": "When true, executes the change. When false (default), returns a preview of the change",
+              "type": "boolean"
+            },
             "enabled": {
               "description": "Set to true to enable the VPN client, false to disable it",
               "type": "boolean"
@@ -16565,6 +16569,10 @@
       "schema": {
         "input": {
           "properties": {
+            "confirm": {
+              "description": "When true, executes the change. When false (default), returns a preview of the change",
+              "type": "boolean"
+            },
             "enabled": {
               "description": "Set to true to enable the VPN server, false to disable it",
               "type": "boolean"

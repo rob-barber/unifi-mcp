@@ -6,7 +6,7 @@ class TestConnectionConfig:
         cfg = ConnectionConfig(host="192.168.1.1")
         assert cfg.host == "192.168.1.1"
         assert cfg.port == 443
-        assert cfg.verify_ssl is False
+        assert cfg.verify_ssl is True
         assert cfg.timeout == 30.0
 
     def test_custom_values(self):
