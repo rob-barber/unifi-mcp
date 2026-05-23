@@ -17,6 +17,7 @@ async def detect_unifi_os_pre_login(
     session: aiohttp.ClientSession,
     base_url: str,
     timeout: int = 5,
+    verify_ssl: bool = True,
 ) -> Optional[bool]:
     """
     Detect UniFi OS BEFORE authentication using unauthenticated probes.
@@ -45,7 +46,12 @@ async def detect_unifi_os_pre_login(
         # Probe 1: GET base URL without following redirects
         # UniFi OS typically returns 200 OK with the web UI
         # Standalone controllers often redirect to /manage or return different status
-        async with session.get(base_url, timeout=client_timeout, ssl=False, allow_redirects=False) as response:
+        async with session.get(
+            base_url,
+            timeout=client_timeout,
+            ssl=False if not verify_ssl else None,
+            allow_redirects=False,
+        ) as response:
             logger.debug("Pre-login probe %s: status=%s", base_url, response.status)
 
             if response.status == 200:
@@ -75,6 +81,7 @@ async def detect_with_retry(
     max_retries: int = 3,
     timeout: int = 5,
     pre_login: bool = False,
+    verify_ssl: bool = True,
 ) -> Optional[bool]:
     """
     Detect UniFi OS with exponential backoff retry.
@@ -102,7 +109,7 @@ async def detect_with_retry(
 
     for attempt in range(max_retries):
         try:
-            result = await detect_func(session, base_url, timeout)
+            result = await detect_func(session, base_url, timeout, verify_ssl=verify_ssl)
             if result is not None:
                 return result
         except Exception as e:
@@ -123,6 +130,7 @@ async def _probe_endpoint(
     url: str,
     timeout: aiohttp.ClientTimeout,
     endpoint_name: str,
+    verify_ssl: bool = True,
 ) -> bool:
     """
     Probe a single UniFi endpoint to check if it responds successfully.
@@ -140,7 +148,7 @@ async def _probe_endpoint(
     try:
         logger.debug("Probing %s endpoint: %s", endpoint_name, url)
 
-        async with session.get(url, timeout=timeout, ssl=False) as response:
+        async with session.get(url, timeout=timeout, ssl=False if not verify_ssl else None) as response:
             if response.status == 200:
                 try:
                     data = await response.json()
@@ -160,7 +168,10 @@ async def _probe_endpoint(
 
 
 async def detect_unifi_os_proactively(
-    session: aiohttp.ClientSession, base_url: str, timeout: int = 5
+    session: aiohttp.ClientSession,
+    base_url: str,
+    timeout: int = 5,
+    verify_ssl: bool = True,
 ) -> Optional[bool]:
     """
     Detect if controller is UniFi OS by testing endpoint variants.
@@ -190,8 +201,8 @@ async def detect_unifi_os_proactively(
     unifi_os_url = f"{base_url}/proxy/network/api/self/sites"
     standard_url = f"{base_url}/api/self/sites"
 
-    unifi_os_result = await _probe_endpoint(session, unifi_os_url, client_timeout, "UniFi OS")
-    standard_result = await _probe_endpoint(session, standard_url, client_timeout, "standard")
+    unifi_os_result = await _probe_endpoint(session, unifi_os_url, client_timeout, "UniFi OS", verify_ssl=verify_ssl)
+    standard_result = await _probe_endpoint(session, standard_url, client_timeout, "standard", verify_ssl=verify_ssl)
 
     # Determine result based on probe outcomes
     if unifi_os_result and standard_result:
@@ -219,7 +230,7 @@ class ConnectionManager:
         password: str,
         port: int = 443,
         site: str = "default",
-        verify_ssl: bool = False,
+        verify_ssl: bool = True,
         cache_timeout: int = 30,
         max_retries: int = 3,
         retry_delay: int = 5,
@@ -305,6 +316,7 @@ class ConnectionManager:
                                 max_retries=3,
                                 timeout=5,
                                 pre_login=True,  # Use unauthenticated detection
+                                verify_ssl=self.verify_ssl,
                             )
                             if detected is not None:
                                 self._unifi_os_override = detected
@@ -349,6 +361,7 @@ class ConnectionManager:
                             max_retries=2,
                             timeout=5,
                             pre_login=False,  # Use authenticated detection
+                            verify_ssl=self.verify_ssl,
                         )
                         if post_login_detected is not None and post_login_detected != self._unifi_os_override:
                             # Post-login detection differs - update override

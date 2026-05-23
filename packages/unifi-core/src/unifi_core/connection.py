@@ -9,7 +9,7 @@ import aiohttp  # noqa: F401
 class ConnectionConfig:
     host: str
     port: int = 443
-    verify_ssl: bool = False
+    verify_ssl: bool = True
     timeout: float = 30.0
 
     @property
